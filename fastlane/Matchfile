@@ -1,0 +1,5 @@
+# frozen_string_literal: true
+
+git_url(ENV.fetch('CODE_SIGNING_URL'))
+git_branch(ENV.fetch('CODE_SIGNING_BRANCH_NAME'))
+generate_apple_certs(true)

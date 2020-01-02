@@ -1,0 +1,3 @@
+# frozen_string_literal: true
+
+username(ENV.fetch('CONNECT_APPLE_ID'))

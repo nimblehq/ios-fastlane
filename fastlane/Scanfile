@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+clean(ENV.fetch('CLEAN_BUILD_TESTING') == 'true')
+skip_slack(true)
+should_zip_build_products(true)
+device(ENV['DEVICE'])
+derived_data_path(ENV['DERIVED_DATA_PATH'])
+output_types('html')
+configuration('Debug')
+code_coverage(true)

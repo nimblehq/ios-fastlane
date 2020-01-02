@@ -1,0 +1,281 @@
+# frozen_string_literal: true
+
+Dotenv.overload('../.env')
+
+require_relative('./modules/TestModule.rb')
+TestModule.init(
+  fastlane: self
+)
+
+require_relative('./modules/CodeSignModule.rb')
+CodeSignModule.init(
+  fastlane: self,
+  debug_identifier: ENV.fetch('BUNDLE_ID_DEBUG'),
+  staging_identifier: ENV.fetch('BUNDLE_ID_STAGING'),
+  production_identifier: ENV.fetch('BUNDLE_ID_PRODUCTION'),
+  release_identifier: ENV.fetch('BUNDLE_ID'),
+  dev_portal_appstore_apple_id: ENV.fetch('DEV_PORTAL_APPSTORE_APPLE_ID'),
+  dev_portal_appstore_team_id: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_ID'),
+  dev_portal_appstore_team_name: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_NAME'),
+  dev_portal_development_apple_id: ENV.fetch('DEV_PORTAL_DEVELOPMENT_APPLE_ID'),
+  dev_portal_development_team_id: ENV.fetch('DEV_PORTAL_DEVELOPMENT_TEAM_ID'),
+  dev_portal_development_team_name: ENV.fetch('DEV_PORTAL_DEVELOPMENT_TEAM_NAME'),
+  keychain_name: ENV.fetch('KEYCHAIN_NAME'),
+  keychain_password: ENV.fetch('KEYCHAIN_PASSWORD'),
+  branch_name: ENV.fetch('BRANCH_NAME', nil),
+  support_enterprise_distribution: ENV.fetch('SUPPORT_ENTERPRISE_DISTRIBUTION') == 'true'
+)
+
+require_relative('./modules/APNModule.rb')
+APNModule.init(
+  fastlane: self,
+  debug_identifier: ENV.fetch('BUNDLE_ID_DEBUG'),
+  staging_identifier: ENV.fetch('BUNDLE_ID_STAGING'),
+  production_identifier: ENV.fetch('BUNDLE_ID_PRODUCTION'),
+  release_identifier: ENV.fetch('BUNDLE_ID'),
+  dev_portal_appstore_apple_id: ENV.fetch('DEV_PORTAL_APPSTORE_APPLE_ID'),
+  dev_portal_appstore_team_id: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_ID'),
+  dev_portal_appstore_team_name: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_NAME'),
+  dev_portal_development_apple_id: ENV.fetch('DEV_PORTAL_DEVELOPMENT_APPLE_ID'),
+  dev_portal_development_team_id: ENV.fetch('DEV_PORTAL_DEVELOPMENT_TEAM_ID'),
+  dev_portal_development_team_name: ENV.fetch('DEV_PORTAL_DEVELOPMENT_TEAM_NAME'),
+  apn_output_path: ENV.fetch('APN_OUTPUT_PATH')
+)
+
+require_relative('./modules/BuildModule.rb')
+BuildModule.init(
+  fastlane: self,
+  support_enterprise_distribution: ENV.fetch('SUPPORT_ENTERPRISE_DISTRIBUTION') == 'true',
+  dev_portal_appstore_apple_id: ENV.fetch('DEV_PORTAL_APPSTORE_APPLE_ID'),
+  dev_portal_appstore_team_id: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_ID'),
+  dev_portal_appstore_team_name: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_NAME'),
+  dev_portal_development_apple_id: ENV.fetch('DEV_PORTAL_DEVELOPMENT_APPLE_ID'),
+  dev_portal_development_team_id: ENV.fetch('DEV_PORTAL_DEVELOPMENT_TEAM_ID'),
+  dev_portal_development_team_name: ENV.fetch('DEV_PORTAL_DEVELOPMENT_TEAM_NAME')
+)
+
+require_relative('./modules/VersioningModule.rb')
+VersioningModule.init(
+  fastlane: self,
+  project_path: ENV.fetch('PROJECT_PATH'),
+  main_target_name: ENV.fetch('MAIN_TARGET_NAME')
+)
+
+require_relative('./modules/DistributionModule.rb')
+DistributionModule.init(
+  fastlane: self,
+  build_path: ENV.fetch('BUILD_PATH'),
+  firebase_distribution_groups: ENV.fetch('FIREBASE_DISTRIBUTION_GROUPS'),
+  dev_portal_team_id: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_ID'),
+  dev_portal_team_name: ENV.fetch('DEV_PORTAL_APPSTORE_TEAM_NAME'),
+  appstore_connect_team_id: ENV.fetch('FASTLANE_ITC_TEAM_ID'),
+  appstore_connect_team_name: ENV.fetch('CONNECT_TEAM_NAME'),
+  firebase_token: ENV.fetch('FIREBASE_TOKEN'),
+  gsp_path: ENV.fetch('GSP_PATH')
+)
+
+default_platform(:ios)
+
+skip_docs
+
+platform :ios do
+  ## Testing ##
+
+  desc 'Build test suite scheme for testing'
+  lane :build_for_testing do
+    TestModule.build(scheme: ENV.fetch('SCHEME_NAME_TEST_SUITE'))
+  end
+
+  desc 'Test unit tests scheme'
+  lane :unit_tests do
+    TestModule.test(scheme: ENV.fetch('SCHEME_NAME_UNIT_TESTS'))
+  end
+
+  desc 'Test ui tests scheme'
+  lane :ui_tests do
+    TestModule.test(scheme: ENV.fetch('SCHEME_NAME_UI_TESTS'))
+  end
+
+  ## Build ##
+
+  desc 'build staging is_appstore_method:false'
+  lane :build_staging do |options|
+    BuildModule.build(
+      scheme: ENV.fetch('SCHEME_NAME_STAGING'),
+      product_name: ENV.fetch('PRODUCT_NAME_STAGING'),
+      is_appstore_method: options.fetch(:is_appstore_method, false)
+    )
+  end
+
+  desc 'build production is_appstore_method:false'
+  lane :build_production do |options|
+    BuildModule.build(
+      scheme: ENV.fetch('SCHEME_NAME_PRODUCTION'),
+      product_name: ENV.fetch('PRODUCT_NAME_PRODUCTION'),
+      is_appstore_method: options.fetch(:is_appstore_method, false)
+    )
+  end
+
+  desc 'build appstore'
+  lane :build_appstore do
+    BuildModule.build(
+      scheme: ENV.fetch('SCHEME_NAME_APPSTORE'),
+      product_name: ENV.fetch('PRODUCT_NAME_APPSTORE'),
+      is_appstore_method: true
+    )
+  end
+
+  desc 'upload to firebase product_name:, firebase_app_id:, notes:'
+  lane :upload_to_firebase do |options|
+    DistributionModule.upload_to_firebase(
+      product_name: options.fetch(:product_name),
+      firebase_app_id: options.fetch(:firebase_app_id),
+      notes: options.fetch(:notes, '')
+    )
+    unless ENV.fetch('SLACK_URL', nil).nil?
+      slack(message: "#{options.fetch(:product_name)} was successfully uploaded to Firebase Distribution")
+    end
+  end
+
+  desc 'upload symbol to firebase crashlytics'
+  lane :upload_dsym do |options|
+    DistributionModule.upload_symbols_to_firebase(
+      product_name: options.fetch(:product_name),
+      gsp_name: options.fetch(:gsp_name)
+    )
+  end
+
+  desc 'upload to appstore connect product_name:'
+  lane :upload_to_appstore do |options|
+    DistributionModule.upload_to_appstore(
+      product_name: options.fetch(:product_name)
+    )
+  end
+
+  desc 'Wrapper lane for Jenkins Develop Branch'
+  lane :release_develop_build do
+    branch_type = ENV.fetch('BRANCH_NAME', git_branch).split('/')[0].to_s.downcase
+    if branch_type == 'develop' || branch_type == 'beta'
+      code_signing
+      bump_build
+      hash_version
+      build_staging(is_appstore_method: false)
+      upload_to_firebase(
+        product_name: ENV.fetch('PRODUCT_NAME_STAGING'),
+        firebase_app_id: ENV.fetch('FIREBASE_APP_ID_STAGING')
+      )
+      upload_dsym(
+        product_name: ENV.fetch('PRODUCT_NAME_STAGING'),
+        gsp_name: ENV.fetch('GSP_STAGING')
+      )
+    else
+      raise("develop build can only be built on develop or beta branch; current branch type: #{branch_type}")
+    end
+  end
+
+  desc 'Wrapper lane for Jenkins Release Branch'
+  lane :release_build do
+    branch_type = ENV.fetch('BRANCH_NAME', git_branch).split('/')[0].to_s.downcase
+    if branch_type == 'release'
+      code_signing
+      bump_build
+      build_staging(is_appstore_method: false)
+      build_production(is_appstore_method: false)
+      upload_to_firebase(
+        product_name: ENV.fetch('PRODUCT_NAME_STAGING'),
+        firebase_app_id: ENV.fetch('FIREBASE_APP_ID_STAGING')
+      )
+      upload_dsym(
+        product_name: ENV.fetch('PRODUCT_NAME_STAGING'),
+        gsp_name: ENV.fetch('GSP_STAGING')
+      )
+      upload_to_firebase(
+        product_name: ENV.fetch('PRODUCT_NAME_PRODUCTION'),
+        firebase_app_id: ENV.fetch('FIREBASE_APP_ID_PRODUCTION')
+      )
+      upload_dsym(
+        product_name: ENV.fetch('PRODUCT_NAME_PRODUCTION'),
+        gsp_name: ENV.fetch('GSP_PRODUCTION')
+      )
+      commit_bump
+      push_changes
+    else
+      raise("release build can only be built on release branch; current branch type: #{branch_type}")
+    end
+  end
+
+  desc 'Wrapper lane for Jenkins Master Branch'
+  lane :release_appstore do
+    branch_type = ENV.fetch('BRANCH_NAME', git_branch).split('/')[0].to_s.downcase
+
+    if branch_type == 'master'
+      code_signing
+      build_appstore
+      upload_to_appstore(product_name: ENV.fetch('PRODUCT_NAME_APPSTORE'))
+      upload_dsym(
+        product_name: ENV.fetch('PRODUCT_NAME_APPSTORE'),
+        gsp_name: ENV.fetch('GSP_RELEASE')
+      )
+    else
+      raise("release build can only be built on master branch; current branch type: #{branch_type}")
+    end
+  end
+
+  ## Code Signing ##
+
+  desc 'Match code Sign update_development:false, update_beta:false, update_appstore:false'
+  lane :code_signing do |options|
+    CodeSignModule.sync_code_sign(
+      update_development: options.fetch(:update_development, false),
+      update_beta: options.fetch(:update_beta, false),
+      update_appstore: options.fetch(:update_appstore, false)
+    )
+  end
+
+  ## Get Push Notification ##
+
+  desc 'get push notification update_development:false, update_beta:false, update_appstore:false'
+  lane :get_apn_certificate do |options|
+    APNModule.get_push_certificate(
+      update_development: options.fetch(:update_development, false),
+      update_beta: options.fetch(:update_beta, false),
+      update_appstore: options.fetch(:update_appstore, false)
+    )
+  end
+
+  ## Versioning ##
+
+  desc 'bump build number'
+  lane :bump_build do
+    VersioningModule.build_number = number_of_commits
+  end
+
+  desc 'hash version'
+  lane :hash_version do
+    branch_name_components = ENV.fetch('BRANCH_NAME', git_branch).split('/')
+    if branch_name_components[0] == 'beta' || branch_name_components[0] == 'develop'
+      version_number = VersioningModule.version_number.split('-')[0]
+      commit_hash = last_git_commit[:abbreviated_commit_hash]
+      VersioningModule.version_number = "#{version_number}-#{commit_hash}"
+    else
+      raise 'hash_version can only be executed on develop & beta branch'
+    end
+  end
+
+  desc 'commit version_number and build_number'
+  lane :commit_bump do |options|
+    commit_version_bump(
+      message: options.fetch(:message, "[skip-ci] bump version to: #{VersioningModule.version_number} build #{VersioningModule.build_number}"),
+      xcodeproj: ENV.fetch('PROJECT_PATH')
+    )
+  end
+
+  desc 'push changes current_branch to origin/current_branch'
+  lane :push_changes do
+    push_to_git_remote(
+      local_branch: 'HEAD',
+      remote_branch: "release/#{VersioningModule.version_number}",
+      tags: false
+    )
+  end
+end

@@ -1,0 +1,4 @@
+# frozen_string_literal: true
+
+clean(true)
+output_directory(ENV.fetch('BUILD_PATH'))
